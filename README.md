@@ -22,7 +22,7 @@ Este projeto oferece uma ferramenta completa para automatizar a geração de cla
 
 1. Clone o repositório:
 ```bash
-git clone <repository-url>
+git clone https://github.com/DanielFreitasDev/jpa-generator.git
 cd jpa-generator
 ```
 
