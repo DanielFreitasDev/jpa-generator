@@ -323,9 +323,9 @@ Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICE
 
 Para suporte e dúvidas:
 
-- 🐛 **Issues**: [GitHub Issues](https://github.com/seu-usuario/jpa-generator/issues)
-- 📧 **Email**: seu-email@exemplo.com
-- 💬 **Discussões**: [GitHub Discussions](https://github.com/seu-usuario/jpa-generator/discussions)
+- 🐛 **Issues**: [GitHub Issues](https://github.com/DanielFreitasDev/jpa-generator/issues)
+- 📧 **Email**: danielsfreitas97@gmail.com
+- 💬 **Discussões**: [GitHub Discussions](https://github.com/DanielFreitasDev/jpa-generator/discussions)
 
 ## 🙏 Agradecimentos
 
