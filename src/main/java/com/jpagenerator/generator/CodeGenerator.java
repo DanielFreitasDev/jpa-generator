@@ -175,7 +175,7 @@ public class CodeGenerator {
                         .findFirst()
                         .orElse(null);
 
-                String sequenceName = sequence != null ? sequence.getSequenceName() :
+                String sequenceName = sequence != null ? sequence.getSequenceSchema() + "." + sequence.getSequenceName() :
                         tableInfo.getSchema() + "." + tableInfo.getName() + "_" + column.getName() + "_seq";
 
                 String generatorName = tableInfo.getName() + "_" + column.getName() + "_gen";

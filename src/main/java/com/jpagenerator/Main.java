@@ -179,26 +179,48 @@ public class Main {
         System.out.println("\nOpções:");
         System.out.println("1. Todas as tabelas");
         System.out.println("2. Tabelas específicas (números separados por vírgula)");
-        System.out.print("Escolha: ");
+        System.out.print("Escolha (1 ou 2): ");
 
-        String choice = scanner.nextLine().trim();
+        String optionChoice = scanner.nextLine().trim();
         List<String> selectedTables;
 
-        if (choice.equals("1")) {
+        if (optionChoice.equals("1")) {
             selectedTables = tables;
-        } else {
+            System.out.println("✓ Selecionadas todas as " + tables.size() + " tabelas do schema.");
+        } else if (optionChoice.equals("2")) {
             selectedTables = new ArrayList<>();
-            String[] indices = choice.split(",");
+            System.out.print("Digite os números das tabelas separados por vírgula (ex: 1,3,5): ");
+            String tableIndices = scanner.nextLine().trim();
+
+            if (tableIndices.isEmpty()) {
+                System.out.println("⚠ Nenhuma tabela selecionada. Encerrando.");
+                return;
+            }
+
+            String[] indices = tableIndices.split(",");
             for (String index : indices) {
                 try {
                     int i = Integer.parseInt(index.trim()) - 1;
                     if (i >= 0 && i < tables.size()) {
                         selectedTables.add(tables.get(i));
+                        System.out.println("✓ Adicionada: " + tables.get(i));
+                    } else {
+                        System.out.println("⚠ Índice inválido ignorado: " + (i + 1));
                     }
                 } catch (NumberFormatException e) {
-                    // Ignore invalid indices
+                    System.out.println("⚠ Valor inválido ignorado: " + index.trim());
                 }
             }
+
+            if (selectedTables.isEmpty()) {
+                System.out.println("⚠ Nenhuma tabela válida selecionada. Encerrando.");
+                return;
+            }
+
+            System.out.println("✓ Total de " + selectedTables.size() + " tabela(s) selecionada(s).");
+        } else {
+            System.out.println("⚠ Opção inválida. Encerrando.");
+            return;
         }
 
         // Process selected tables

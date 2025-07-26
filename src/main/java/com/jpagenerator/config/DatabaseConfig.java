@@ -1,5 +1,8 @@
 package com.jpagenerator.config;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class DatabaseConfig {
     private String host = "localhost";
     private int port = 5432;
