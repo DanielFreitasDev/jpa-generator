@@ -2,11 +2,14 @@ package com.jpagenerator.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
 
 public class ConfigManager {
+    private static final Logger logger = LoggerFactory.getLogger(ConfigManager.class);
     private static final String CONFIG_DIR = "config";
     private static final String CONFIG_FILE = "database.json";
     private static final String CONFIG_PATH = CONFIG_DIR + File.separator + CONFIG_FILE;
@@ -17,10 +20,14 @@ public class ConfigManager {
         this.objectMapper = new ObjectMapper();
         this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
 
-        // Create config directory if it doesn't exist
         File configDir = new File(CONFIG_DIR);
         if (!configDir.exists()) {
-            configDir.mkdirs();
+            if (configDir.mkdirs()) {
+                logger.info("Diretório de configuração criado com sucesso: {}", CONFIG_DIR);
+            } else {
+                logger.error("Falha ao criar o diretório de configuração: {}", CONFIG_DIR);
+                throw new RuntimeException("Não foi possível criar o diretório de configuração: " + CONFIG_DIR);
+            }
         }
     }
 
@@ -54,45 +61,17 @@ public class ConfigManager {
             // Create parent directories if they don't exist
             File parentDir = configFile.getParentFile();
             if (parentDir != null && !parentDir.exists()) {
-                parentDir.mkdirs();
+                if (!parentDir.mkdirs()) {
+                    logger.error("Falha ao criar diretórios para o caminho: {}", configPath);
+                    throw new IOException("Não foi possível criar os diretórios pai: " + parentDir.getAbsolutePath());
+                }
             }
 
             objectMapper.writeValue(configFile, config);
+            logger.info("Configuração salva com sucesso em: {}", configPath);
+
         } catch (IOException e) {
-            System.err.println("Erro ao salvar configuração: " + e.getMessage());
+            logger.error("Erro ao salvar configuração em {}: {}", configPath, e.getMessage(), e);
         }
-    }
-
-    public boolean configExists() {
-        return configExists(CONFIG_PATH);
-    }
-
-    public boolean configExists(String configPath) {
-        return new File(configPath).exists();
-    }
-
-    public void deleteConfig() {
-        deleteConfig(CONFIG_PATH);
-    }
-
-    public void deleteConfig(String configPath) {
-        File configFile = new File(configPath);
-        if (configFile.exists()) {
-            configFile.delete();
-        }
-    }
-
-    public DatabaseConfig createDefaultConfig() {
-        DatabaseConfig config = new DatabaseConfig();
-        config.setHost("localhost");
-        config.setPort(5432);
-        config.setDatabase("postgres");
-        config.setUsername("postgres");
-        config.setPassword("");
-        config.setJavaVersion(17);
-        config.setOutputDirectory("src/main/java");
-        config.setBasePackage("com.example.entity");
-
-        return config;
     }
 }

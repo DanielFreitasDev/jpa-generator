@@ -1,9 +1,14 @@
 package com.jpagenerator.config;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import lombok.Getter;
+import lombok.Setter;
 
+@Setter
+@Getter
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class DatabaseConfig {
+    // Getters and Setters
     private String host = "localhost";
     private int port = 5432;
     private String database;
@@ -25,87 +30,6 @@ public class DatabaseConfig {
         this.database = database;
         this.username = username;
         this.password = password;
-    }
-
-    // Getters and Setters
-    public String getHost() {
-        return host;
-    }
-
-    public void setHost(String host) {
-        this.host = host;
-    }
-
-    public int getPort() {
-        return port;
-    }
-
-    public void setPort(int port) {
-        this.port = port;
-    }
-
-    public String getDatabase() {
-        return database;
-    }
-
-    public void setDatabase(String database) {
-        this.database = database;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
-    public int getJavaVersion() {
-        return javaVersion;
-    }
-
-    public void setJavaVersion(int javaVersion) {
-        this.javaVersion = javaVersion;
-    }
-
-    public String getOutputDirectory() {
-        return outputDirectory;
-    }
-
-    public void setOutputDirectory(String outputDirectory) {
-        this.outputDirectory = outputDirectory;
-    }
-
-    public String getBasePackage() {
-        return basePackage;
-    }
-
-    public void setBasePackage(String basePackage) {
-        this.basePackage = basePackage;
-    }
-
-    public boolean isGenerateAuditFields() {
-        return generateAuditFields;
-    }
-
-    public void setGenerateAuditFields(boolean generateAuditFields) {
-        this.generateAuditFields = generateAuditFields;
-    }
-
-    public boolean isUseLombok() {
-        return useLombok;
-    }
-
-    public void setUseLombok(boolean useLombok) {
-        this.useLombok = useLombok;
     }
 
     public String getJdbcUrl() {

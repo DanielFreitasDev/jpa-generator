@@ -5,6 +5,8 @@ import com.jpagenerator.model.ColumnInfo;
 import com.jpagenerator.model.ForeignKeyInfo;
 import com.jpagenerator.model.SequenceInfo;
 import com.jpagenerator.model.TableInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -14,6 +16,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 public class CodeGenerator {
+    private static final Logger logger = LoggerFactory.getLogger(CodeGenerator.class);
     private final DatabaseConfig config;
 
     public CodeGenerator(DatabaseConfig config) {
@@ -254,45 +257,20 @@ public class CodeGenerator {
     private String mapSqlTypeToJava(ColumnInfo column) {
         String dataType = column.getDataType().toLowerCase();
 
-        switch (dataType) {
-            case "smallint":
-            case "smallserial":
-                return "Integer";
-            case "integer":
-            case "serial":
-                return "Integer";
-            case "bigint":
-            case "bigserial":
-                return "Long";
-            case "character varying":
-            case "varchar":
-            case "text":
-            case "char":
-            case "character":
-                return "String";
-            case "boolean":
-                return "Boolean";
-            case "timestamp":
-            case "timestamptz":
-            case "timestamp with time zone":
-            case "timestamp without time zone":
-                return "Instant";
-            case "date":
-                return "LocalDate";
-            case "time":
-                return "LocalTime";
-            case "numeric":
-            case "decimal":
-                return "BigDecimal";
-            case "real":
-                return "Float";
-            case "double precision":
-                return "Double";
-            case "uuid":
-                return "UUID";
-            default:
-                return "String"; // Default fallback
-        }
+        return switch (dataType) {
+            case "smallint", "smallserial", "integer", "serial" -> "Integer";
+            case "bigint", "bigserial" -> "Long";
+            case "character varying", "varchar", "text", "char", "character" -> "String";
+            case "boolean" -> "Boolean";
+            case "timestamp", "timestamptz", "timestamp with time zone", "timestamp without time zone" -> "Instant";
+            case "date" -> "LocalDate";
+            case "time" -> "LocalTime";
+            case "numeric", "decimal" -> "BigDecimal";
+            case "real" -> "Float";
+            case "double precision" -> "Double";
+            case "uuid" -> "UUID";
+            default -> "String"; // Default fallback
+        };
     }
 
     private String formatDefaultValue(String defaultValue) {
@@ -352,7 +330,12 @@ public class CodeGenerator {
         File packageDir = new File(config.getOutputDirectory(), packagePath);
 
         if (!packageDir.exists()) {
-            packageDir.mkdirs();
+            if (!packageDir.mkdirs()) {
+                logger.error("Não foi possível criar o diretório: {}", packageDir.getAbsolutePath());
+                throw new IOException("Erro ao criar diretório: " + packageDir.getAbsolutePath());
+            } else {
+                logger.info("Diretório criado: {}", packageDir.getAbsolutePath());
+            }
         }
 
         // Create file

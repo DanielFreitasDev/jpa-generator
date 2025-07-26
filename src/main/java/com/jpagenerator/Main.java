@@ -5,17 +5,20 @@ import com.jpagenerator.config.DatabaseConfig;
 import com.jpagenerator.generator.CodeGenerator;
 import com.jpagenerator.inspector.DatabaseInspector;
 import com.jpagenerator.model.TableInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 
 public class Main {
+    private static final Logger logger = LoggerFactory.getLogger(Main.class);
     private static final Scanner scanner = new Scanner(System.in);
-    private static ConfigManager configManager = new ConfigManager();
+    private static final ConfigManager configManager = new ConfigManager();
     private static DatabaseInspector inspector;
     private static CodeGenerator generator;
 
@@ -42,9 +45,9 @@ public class Main {
 
         } catch (Exception e) {
             System.err.println("Erro durante a execução: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Erro durante execução", e);
         } finally {
-            if (scanner != null) scanner.close();
+            scanner.close();
         }
     }
 
@@ -237,7 +240,7 @@ public class Main {
                 throw new IllegalArgumentException("Formato de tabela deve ser: schema.tabela");
             }
 
-            List<String> tables = Arrays.asList(parts[1]);
+            List<String> tables = Collections.singletonList(parts[1]);
             processSelectedTables(parts[0], tables);
 
         } else if (args.schema != null) {

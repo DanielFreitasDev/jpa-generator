@@ -1,5 +1,10 @@
 package com.jpagenerator.model;
 
+import lombok.Getter;
+import lombok.Setter;
+
+@Setter
+@Getter
 public class SequenceInfo {
     private String columnName;
     private String sequenceName;
@@ -8,27 +13,4 @@ public class SequenceInfo {
     public SequenceInfo() {
     }
 
-    public String getColumnName() {
-        return columnName;
-    }
-
-    public void setColumnName(String columnName) {
-        this.columnName = columnName;
-    }
-
-    public String getSequenceName() {
-        return sequenceName;
-    }
-
-    public void setSequenceName(String sequenceName) {
-        this.sequenceName = sequenceName;
-    }
-
-    public String getSequenceSchema() {
-        return sequenceSchema;
-    }
-
-    public void setSequenceSchema(String sequenceSchema) {
-        this.sequenceSchema = sequenceSchema;
-    }
 }

@@ -1,8 +1,14 @@
 package com.jpagenerator.model;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.util.List;
 
+@Setter
+@Getter
 public class TableInfo {
+    // Getters and Setters
     private String schema;
     private String name;
     private List<ColumnInfo> columns;
@@ -14,52 +20,4 @@ public class TableInfo {
     public TableInfo() {
     }
 
-    // Getters and Setters
-    public String getSchema() {
-        return schema;
-    }
-
-    public void setSchema(String schema) {
-        this.schema = schema;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public List<ColumnInfo> getColumns() {
-        return columns;
-    }
-
-    public void setColumns(List<ColumnInfo> columns) {
-        this.columns = columns;
-    }
-
-    public PrimaryKeyInfo getPrimaryKey() {
-        return primaryKey;
-    }
-
-    public void setPrimaryKey(PrimaryKeyInfo primaryKey) {
-        this.primaryKey = primaryKey;
-    }
-
-    public List<ForeignKeyInfo> getForeignKeys() {
-        return foreignKeys;
-    }
-
-    public void setForeignKeys(List<ForeignKeyInfo> foreignKeys) {
-        this.foreignKeys = foreignKeys;
-    }
-
-    public List<SequenceInfo> getSequences() {
-        return sequences;
-    }
-
-    public void setSequences(List<SequenceInfo> sequences) {
-        this.sequences = sequences;
-    }
 }

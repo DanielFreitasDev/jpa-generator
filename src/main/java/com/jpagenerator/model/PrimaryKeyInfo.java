@@ -1,19 +1,16 @@
 package com.jpagenerator.model;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.util.List;
 
+@Setter
+@Getter
 public class PrimaryKeyInfo {
     private List<String> columnNames;
 
     public PrimaryKeyInfo() {
-    }
-
-    public List<String> getColumnNames() {
-        return columnNames;
-    }
-
-    public void setColumnNames(List<String> columnNames) {
-        this.columnNames = columnNames;
     }
 
     public boolean isComposite() {
