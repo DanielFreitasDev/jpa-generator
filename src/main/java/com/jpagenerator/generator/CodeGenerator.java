@@ -166,7 +166,7 @@ public class CodeGenerator {
             generateRegularField(code, column, tableInfo);
         }
 
-        code.append("\n");
+        code.append("\n\n");
     }
 
     private void generateRegularField(StringBuilder code, ColumnInfo column, TableInfo tableInfo) {
