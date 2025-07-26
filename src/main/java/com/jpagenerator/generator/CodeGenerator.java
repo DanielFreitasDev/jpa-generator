@@ -20,7 +20,7 @@ public class CodeGenerator {
         this.config = config;
     }
 
-    public String generateEntity(TableInfo tableInfo, String className, Map<String, String> foreignKeyHandling) throws IOException {
+    public String generateEntity(TableInfo tableInfo, String className, Map<String, String> foreignKeyHandling, Map<String, String> allClassNames) throws IOException {
         StringBuilder code = new StringBuilder();
 
         // Package declaration
@@ -33,7 +33,7 @@ public class CodeGenerator {
         generateClassDeclaration(code, className, tableInfo);
 
         // Fields
-        generateFields(code, tableInfo, foreignKeyHandling);
+        generateFields(code, tableInfo, foreignKeyHandling, allClassNames);
 
         // Close class
         code.append("}\n");
@@ -137,25 +137,28 @@ public class CodeGenerator {
         code.append("public class ").append(className).append(" {\n");
     }
 
-    private void generateFields(StringBuilder code, TableInfo tableInfo, Map<String, String> foreignKeyHandling) {
+    private void generateFields(StringBuilder code, TableInfo tableInfo, Map<String, String> foreignKeyHandling, Map<String, String> allClassNames) {
         for (ColumnInfo column : tableInfo.getColumns()) {
-            generateField(code, column, tableInfo, foreignKeyHandling);
+            generateField(code, column, tableInfo, foreignKeyHandling, allClassNames);
         }
     }
 
-    private void generateField(StringBuilder code, ColumnInfo column, TableInfo tableInfo, Map<String, String> foreignKeyHandling) {
+    private void generateField(StringBuilder code, ColumnInfo column, TableInfo tableInfo, Map<String, String> foreignKeyHandling, Map<String, String> allClassNames) {
         // Check if this column is a foreign key
-        ForeignKeyInfo fk = tableInfo.getForeignKeys().stream()
-                .filter(f -> f.getColumnName().equals(column.getName()))
-                .findFirst()
-                .orElse(null);
+        ForeignKeyInfo fk = null;
+        if (tableInfo.getForeignKeys() != null) {
+            fk = tableInfo.getForeignKeys().stream()
+                    .filter(f -> f.getColumnName().equals(column.getName()))
+                    .findFirst()
+                    .orElse(null);
+        }
 
         boolean isForeignKey = fk != null;
         boolean createRelationship = isForeignKey && "relationship".equals(foreignKeyHandling.get(column.getName()));
 
         // Generate field annotations and declaration
         if (createRelationship) {
-            generateRelationshipField(code, column, fk, tableInfo);
+            generateRelationshipField(code, column, fk, allClassNames);
         } else {
             generateRegularField(code, column, tableInfo);
         }
@@ -223,7 +226,7 @@ public class CodeGenerator {
         code.append("    private ").append(javaType).append(" ").append(fieldName).append(";");
     }
 
-    private void generateRelationshipField(StringBuilder code, ColumnInfo column, ForeignKeyInfo fk, TableInfo tableInfo) {
+    private void generateRelationshipField(StringBuilder code, ColumnInfo column, ForeignKeyInfo fk, Map<String, String> allClassNames) {
         boolean isNotNull = !column.isNullable();
 
         // ManyToOne annotation
@@ -241,8 +244,9 @@ public class CodeGenerator {
         code.append(")\n");
 
         // Field declaration
-        String referencedClassName = toPascalCase(fk.getReferencedTable());
-        String fieldName = toCamelCase(fk.getReferencedTable());
+        String referencedTableName = fk.getReferencedTable();
+        String referencedClassName = allClassNames.getOrDefault(referencedTableName, toPascalCase(referencedTableName));
+        String fieldName = toCamelCase(fk.getColumnName().replaceAll("_id$", "")); // Remove _id suffix for a cleaner name
 
         code.append("    private ").append(referencedClassName).append(" ").append(fieldName).append(";");
     }
@@ -327,8 +331,19 @@ public class CodeGenerator {
     private String toPascalCase(String input) {
         if (input == null || input.isEmpty()) return input;
 
-        String camelCase = toCamelCase(input);
-        return Character.toUpperCase(camelCase.charAt(0)) + camelCase.substring(1);
+        String[] parts = input.split("_");
+        StringBuilder result = new StringBuilder();
+
+        for (String part : parts) {
+            if (!part.isEmpty()) {
+                result.append(Character.toUpperCase(part.charAt(0)));
+                if (part.length() > 1) {
+                    result.append(part.substring(1).toLowerCase());
+                }
+            }
+        }
+
+        return result.toString();
     }
 
     private String saveToFile(String className, String code) throws IOException {

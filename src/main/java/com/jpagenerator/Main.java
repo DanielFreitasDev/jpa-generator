@@ -247,49 +247,65 @@ public class Main {
         }
     }
 
-    private static void processSelectedTables(String schema, List<String> tableNames) throws Exception {
+    private static void processSelectedTables(String schema, List<String> initialTableNames) throws Exception {
         System.out.println("\n=== Processando Tabelas ===");
 
         Map<String, String> classNames = new HashMap<>();
         Map<String, Map<String, String>> foreignKeyHandling = new HashMap<>();
+        List<String> allTableNames = new ArrayList<>(initialTableNames); // Start with initial tables
+        List<String> configuredTables = new ArrayList<>(); // Keep track of tables we've asked config for
 
-        // Configure class names and FK handling
-        for (String tableName : tableNames) {
+        for (int i = 0; i < allTableNames.size(); i++) {
+            String tableName = allTableNames.get(i);
+            if (configuredTables.contains(tableName)) {
+                continue;
+            }
+
             TableInfo tableInfo = inspector.getTableInfo(schema, tableName);
 
-            // Default class name
+            // Configure class name
             String defaultClassName = toPascalCase(tableName);
             System.out.print("\nTabela: " + tableName + " -> Classe [" + defaultClassName + "]: ");
             String className = scanner.nextLine().trim();
             classNames.put(tableName, className.isEmpty() ? defaultClassName : className);
 
             // Handle foreign keys
-            if (!tableInfo.getForeignKeys().isEmpty()) {
-                System.out.println("Foreign Keys encontradas:");
-                Map<String, String> fkHandling = new HashMap<>();
+            if (tableInfo.getForeignKeys() != null && !tableInfo.getForeignKeys().isEmpty()) {
+                System.out.println("Foreign Keys encontradas para a tabela: " + tableName);
+                Map<String, String> fkHandling = foreignKeyHandling.getOrDefault(tableName, new HashMap<>());
 
                 for (var fk : tableInfo.getForeignKeys()) {
                     System.out.println("  " + fk.getColumnName() + " -> " + fk.getReferencedSchema() + "." + fk.getReferencedTable());
                     System.out.print("  Tratamento (1=coluna simples, 2=relacionamento JPA) [2]: ");
                     String choice = scanner.nextLine().trim();
 
-                    fkHandling.put(fk.getColumnName(), choice.equals("1") ? "column" : "relationship");
-                }
+                    String handling = choice.equals("1") ? "column" : "relationship";
+                    fkHandling.put(fk.getColumnName(), handling);
 
+                    if (handling.equals("relationship")) {
+                        String referencedTable = fk.getReferencedTable();
+                        if (!allTableNames.contains(referencedTable)) {
+                            allTableNames.add(referencedTable);
+                            System.out.println("-> Tabela relacionada '" + referencedTable + "' adicionada para geração.");
+                        }
+                    }
+                }
                 foreignKeyHandling.put(tableName, fkHandling);
             }
+            configuredTables.add(tableName);
         }
+
 
         // Generate classes
         System.out.println("\n=== Gerando Classes ===");
         List<String> generatedFiles = new ArrayList<>();
 
-        for (String tableName : tableNames) {
+        for (String tableName : allTableNames) {
             TableInfo tableInfo = inspector.getTableInfo(schema, tableName);
             String className = classNames.get(tableName);
             Map<String, String> fkHandling = foreignKeyHandling.getOrDefault(tableName, new HashMap<>());
 
-            String filePath = generator.generateEntity(tableInfo, className, fkHandling);
+            String filePath = generator.generateEntity(tableInfo, className, fkHandling, classNames);
             generatedFiles.add(filePath);
 
             System.out.println("✓ " + className + ".java gerado em: " + filePath);
