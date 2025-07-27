@@ -20,6 +20,7 @@ public class DatabaseConfig {
     private boolean generateAuditFields = true;
     private boolean useLombok = true;
     private boolean useAutomaticSingularization = true;
+    private String foreignKeyStrategy = "interactive"; // "interactive", "relationship", "column"
 
     // Constructors
     public DatabaseConfig() {
@@ -55,6 +56,7 @@ public class DatabaseConfig {
                 ", generateAuditFields=" + generateAuditFields +
                 ", useLombok=" + useLombok +
                 ", useAutomaticSingularization=" + useAutomaticSingularization +
+                ", foreignKeyStrategy='" + foreignKeyStrategy + '\'' +
                 '}';
     }
 }

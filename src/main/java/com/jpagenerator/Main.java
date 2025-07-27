@@ -143,7 +143,27 @@ public class Main {
         String autoSingularize = scanner.nextLine().trim().toLowerCase();
         config.setUseAutomaticSingularization(!autoSingularize.equals("n") && !autoSingularize.equals("nao"));
 
-        System.out.print("Deseja salvar esta configuração? (s/n): ");
+        // Nova pergunta para tratamento de Foreign Keys
+        System.out.println("\nComo tratar as Foreign Keys (chaves estrangeiras)?");
+        System.out.println("1. Perguntar para cada uma (interativo)");
+        System.out.println("2. Tratar todas como Relacionamento JPA (@ManyToOne)");
+        System.out.println("3. Tratar todas como Coluna Simples (campo ID)");
+        System.out.print("Escolha uma opção [1]: ");
+        String fkChoice = scanner.nextLine().trim();
+        switch (fkChoice) {
+            case "2":
+                config.setForeignKeyStrategy("relationship");
+                break;
+            case "3":
+                config.setForeignKeyStrategy("column");
+                break;
+            default:
+                config.setForeignKeyStrategy("interactive");
+                break;
+        }
+
+
+        System.out.print("\nDeseja salvar esta configuração? (s/n): ");
         String save = scanner.nextLine().trim().toLowerCase();
 
         if (save.equals("s") || save.equals("sim") || save.isEmpty()) {
@@ -264,16 +284,15 @@ public class Main {
         List<String> allTableNames = new ArrayList<>(initialTableNames);
         List<String> configuredTables = new ArrayList<>();
 
-        // Pergunta se o usuário quer nomear as classes automaticamente
         boolean autoNameClasses = config.isUseAutomaticSingularization();
-        if (System.console() != null) { // Evita erro em modo batch/IDE
-            System.out.print("\nNomear classes automaticamente (singularizando o nome das tabelas)? (s/n) [" + (autoNameClasses ? "s" : "n") + "]: ");
+        // Apenas pergunta se estiver em modo interativo de verdade
+        if (System.console() != null && config.isUseAutomaticSingularization()) {
+            System.out.print("\nNomear classes automaticamente (singularizando o nome das tabelas)? (s/n) [s]: ");
             String choice = scanner.nextLine().trim().toLowerCase();
             if (!choice.isEmpty()) {
                 autoNameClasses = !choice.equals("n") && !choice.equals("nao");
             }
         }
-
 
         for (int i = 0; i < allTableNames.size(); i++) {
             String tableName = allTableNames.get(i);
@@ -283,7 +302,6 @@ public class Main {
 
             TableInfo tableInfo = inspector.getTableInfo(schema, tableName);
 
-            // Lógica para nomear a classe (automática ou manual)
             String pascalCaseName = Inflector.toPascalCase(tableName);
             String singularName = Inflector.singularize(pascalCaseName);
 
@@ -296,17 +314,29 @@ public class Main {
                 classNames.put(tableName, className.isEmpty() ? singularName : className);
             }
 
-            // Handle foreign keys
             if (tableInfo.getForeignKeys() != null && !tableInfo.getForeignKeys().isEmpty()) {
                 System.out.println("Foreign Keys encontradas para a tabela: " + tableName);
                 Map<String, String> fkHandling = foreignKeyHandling.getOrDefault(tableName, new HashMap<>());
 
                 for (var fk : tableInfo.getForeignKeys()) {
-                    System.out.println("  " + fk.getColumnName() + " -> " + fk.getReferencedSchema() + "." + fk.getReferencedTable());
-                    System.out.print("  Tratamento (1=coluna simples, 2=relacionamento JPA) [2]: ");
-                    String choice = scanner.nextLine().trim();
+                    String handling;
+                    switch (config.getForeignKeyStrategy()) {
+                        case "relationship":
+                            System.out.println("  " + fk.getColumnName() + " -> " + fk.getReferencedTable() + " (Tratando como Relacionamento JPA por configuração)");
+                            handling = "relationship";
+                            break;
+                        case "column":
+                            System.out.println("  " + fk.getColumnName() + " -> " + fk.getReferencedTable() + " (Tratando como Coluna Simples por configuração)");
+                            handling = "column";
+                            break;
+                        default: // "interactive"
+                            System.out.println("  " + fk.getColumnName() + " -> " + fk.getReferencedSchema() + "." + fk.getReferencedTable());
+                            System.out.print("  Tratamento (1=coluna simples, 2=relacionamento JPA) [2]: ");
+                            String choice = scanner.nextLine().trim();
+                            handling = choice.equals("1") ? "column" : "relationship";
+                            break;
+                    }
 
-                    String handling = choice.equals("1") ? "column" : "relationship";
                     fkHandling.put(fk.getColumnName(), handling);
 
                     if (handling.equals("relationship")) {
@@ -322,15 +352,13 @@ public class Main {
             configuredTables.add(tableName);
         }
 
-
-        // Generate classes
         System.out.println("\n=== Gerando Classes ===");
         List<String> generatedFiles = new ArrayList<>();
 
         for (String tableName : allTableNames) {
             TableInfo tableInfo = inspector.getTableInfo(schema, tableName);
             String className = classNames.get(tableName);
-            // Garante que todas as tabelas relacionadas tenham um nome de classe, mesmo que não configurado manualmente
+
             if (className == null) {
                 String pascalCaseName = Inflector.toPascalCase(tableName);
                 className = Inflector.singularize(pascalCaseName);
