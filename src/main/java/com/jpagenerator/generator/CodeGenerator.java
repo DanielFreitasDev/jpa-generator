@@ -5,6 +5,7 @@ import com.jpagenerator.model.ColumnInfo;
 import com.jpagenerator.model.ForeignKeyInfo;
 import com.jpagenerator.model.SequenceInfo;
 import com.jpagenerator.model.TableInfo;
+import com.jpagenerator.util.Inflector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -248,7 +249,7 @@ public class CodeGenerator {
 
         // Field declaration
         String referencedTableName = fk.getReferencedTable();
-        String referencedClassName = allClassNames.getOrDefault(referencedTableName, toPascalCase(referencedTableName));
+        String referencedClassName = allClassNames.getOrDefault(referencedTableName, Inflector.toPascalCase(referencedTableName));
         String fieldName = toCamelCase(fk.getColumnName().replaceAll("_id$", "")); // Remove _id suffix for a cleaner name
 
         code.append("    private ").append(referencedClassName).append(" ").append(fieldName).append(";");
@@ -299,24 +300,6 @@ public class CodeGenerator {
                 result.append(Character.toUpperCase(parts[i].charAt(0)));
                 if (parts[i].length() > 1) {
                     result.append(parts[i].substring(1).toLowerCase());
-                }
-            }
-        }
-
-        return result.toString();
-    }
-
-    private String toPascalCase(String input) {
-        if (input == null || input.isEmpty()) return input;
-
-        String[] parts = input.split("_");
-        StringBuilder result = new StringBuilder();
-
-        for (String part : parts) {
-            if (!part.isEmpty()) {
-                result.append(Character.toUpperCase(part.charAt(0)));
-                if (part.length() > 1) {
-                    result.append(part.substring(1).toLowerCase());
                 }
             }
         }

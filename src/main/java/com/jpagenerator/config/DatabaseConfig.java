@@ -19,6 +19,7 @@ public class DatabaseConfig {
     private String basePackage = "com.example.entity";
     private boolean generateAuditFields = true;
     private boolean useLombok = true;
+    private boolean useAutomaticSingularization = true;
 
     // Constructors
     public DatabaseConfig() {
@@ -47,9 +48,13 @@ public class DatabaseConfig {
                 ", port=" + port +
                 ", database='" + database + '\'' +
                 ", username='" + username + '\'' +
+                ", password='" + password + '\'' +
                 ", javaVersion=" + javaVersion +
                 ", outputDirectory='" + outputDirectory + '\'' +
                 ", basePackage='" + basePackage + '\'' +
+                ", generateAuditFields=" + generateAuditFields +
+                ", useLombok=" + useLombok +
+                ", useAutomaticSingularization=" + useAutomaticSingularization +
                 '}';
     }
 }

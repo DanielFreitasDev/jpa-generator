@@ -5,6 +5,7 @@ import com.jpagenerator.config.DatabaseConfig;
 import com.jpagenerator.generator.CodeGenerator;
 import com.jpagenerator.inspector.DatabaseInspector;
 import com.jpagenerator.model.TableInfo;
+import com.jpagenerator.util.Inflector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,9 +39,9 @@ public class Main {
 
             // Execute based on arguments
             if (cmdArgs.interactive || (cmdArgs.schema == null && cmdArgs.table == null)) {
-                runInteractiveMode();
+                runInteractiveMode(config);
             } else {
-                runBatchMode(cmdArgs);
+                runBatchMode(cmdArgs, config);
             }
 
         } catch (Exception e) {
@@ -137,6 +138,11 @@ public class Main {
         String basePackage = scanner.nextLine().trim();
         config.setBasePackage(basePackage.isEmpty() ? "com.example.entity" : basePackage);
 
+        // Nova pergunta para singularização automática
+        System.out.print("Usar nomeação automática de classes (singularização)? (s/n) [s]: ");
+        String autoSingularize = scanner.nextLine().trim().toLowerCase();
+        config.setUseAutomaticSingularization(!autoSingularize.equals("n") && !autoSingularize.equals("nao"));
+
         System.out.print("Deseja salvar esta configuração? (s/n): ");
         String save = scanner.nextLine().trim().toLowerCase();
 
@@ -148,7 +154,7 @@ public class Main {
         return config;
     }
 
-    private static void runInteractiveMode() throws Exception {
+    private static void runInteractiveMode(DatabaseConfig config) throws Exception {
         System.out.println("\n=== Modo Interativo ===");
 
         // Connect to database
@@ -227,10 +233,10 @@ public class Main {
         }
 
         // Process selected tables
-        processSelectedTables(selectedSchema, selectedTables);
+        processSelectedTables(selectedSchema, selectedTables, config);
     }
 
-    private static void runBatchMode(CommandLineArgs args) throws Exception {
+    private static void runBatchMode(CommandLineArgs args, DatabaseConfig config) throws Exception {
         inspector.connect();
 
         if (args.table != null) {
@@ -241,22 +247,33 @@ public class Main {
             }
 
             List<String> tables = Collections.singletonList(parts[1]);
-            processSelectedTables(parts[0], tables);
+            processSelectedTables(parts[0], tables, config);
 
         } else if (args.schema != null) {
             // Process all tables in schema
             List<String> tables = inspector.getTables(args.schema);
-            processSelectedTables(args.schema, tables);
+            processSelectedTables(args.schema, tables, config);
         }
     }
 
-    private static void processSelectedTables(String schema, List<String> initialTableNames) throws Exception {
+    private static void processSelectedTables(String schema, List<String> initialTableNames, DatabaseConfig config) throws Exception {
         System.out.println("\n=== Processando Tabelas ===");
 
         Map<String, String> classNames = new HashMap<>();
         Map<String, Map<String, String>> foreignKeyHandling = new HashMap<>();
-        List<String> allTableNames = new ArrayList<>(initialTableNames); // Start with initial tables
-        List<String> configuredTables = new ArrayList<>(); // Keep track of tables we've asked config for
+        List<String> allTableNames = new ArrayList<>(initialTableNames);
+        List<String> configuredTables = new ArrayList<>();
+
+        // Pergunta se o usuário quer nomear as classes automaticamente
+        boolean autoNameClasses = config.isUseAutomaticSingularization();
+        if (System.console() != null) { // Evita erro em modo batch/IDE
+            System.out.print("\nNomear classes automaticamente (singularizando o nome das tabelas)? (s/n) [" + (autoNameClasses ? "s" : "n") + "]: ");
+            String choice = scanner.nextLine().trim().toLowerCase();
+            if (!choice.isEmpty()) {
+                autoNameClasses = !choice.equals("n") && !choice.equals("nao");
+            }
+        }
+
 
         for (int i = 0; i < allTableNames.size(); i++) {
             String tableName = allTableNames.get(i);
@@ -266,11 +283,18 @@ public class Main {
 
             TableInfo tableInfo = inspector.getTableInfo(schema, tableName);
 
-            // Configure class name
-            String defaultClassName = toPascalCase(tableName);
-            System.out.print("\nTabela: " + tableName + " -> Classe [" + defaultClassName + "]: ");
-            String className = scanner.nextLine().trim();
-            classNames.put(tableName, className.isEmpty() ? defaultClassName : className);
+            // Lógica para nomear a classe (automática ou manual)
+            String pascalCaseName = Inflector.toPascalCase(tableName);
+            String singularName = Inflector.singularize(pascalCaseName);
+
+            if (autoNameClasses) {
+                classNames.put(tableName, singularName);
+                System.out.println("\nTabela: " + tableName + " -> Classe gerada: " + singularName);
+            } else {
+                System.out.print("\nTabela: " + tableName + " -> Nome da Classe [" + singularName + "]: ");
+                String className = scanner.nextLine().trim();
+                classNames.put(tableName, className.isEmpty() ? singularName : className);
+            }
 
             // Handle foreign keys
             if (tableInfo.getForeignKeys() != null && !tableInfo.getForeignKeys().isEmpty()) {
@@ -306,6 +330,12 @@ public class Main {
         for (String tableName : allTableNames) {
             TableInfo tableInfo = inspector.getTableInfo(schema, tableName);
             String className = classNames.get(tableName);
+            // Garante que todas as tabelas relacionadas tenham um nome de classe, mesmo que não configurado manualmente
+            if (className == null) {
+                String pascalCaseName = Inflector.toPascalCase(tableName);
+                className = Inflector.singularize(pascalCaseName);
+                classNames.put(tableName, className);
+            }
             Map<String, String> fkHandling = foreignKeyHandling.getOrDefault(tableName, new HashMap<>());
 
             String filePath = generator.generateEntity(tableInfo, className, fkHandling, classNames);
@@ -320,24 +350,6 @@ public class Main {
         generatedFiles.forEach(file -> System.out.println("  " + file));
 
         inspector.disconnect();
-    }
-
-    private static String toPascalCase(String input) {
-        if (input == null || input.isEmpty()) return input;
-
-        String[] parts = input.split("_");
-        StringBuilder result = new StringBuilder();
-
-        for (String part : parts) {
-            if (!part.isEmpty()) {
-                result.append(Character.toUpperCase(part.charAt(0)));
-                if (part.length() > 1) {
-                    result.append(part.substring(1).toLowerCase());
-                }
-            }
-        }
-
-        return result.toString();
     }
 
     private static class CommandLineArgs {
