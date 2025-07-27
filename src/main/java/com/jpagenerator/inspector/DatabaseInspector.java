@@ -193,7 +193,7 @@ public class DatabaseInspector {
         List<ForeignKeyInfo> foreignKeys = new ArrayList<>();
 
         String query = """
-                SELECT 
+                SELECT DISTINCT
                     kcu.column_name,
                     ccu.table_schema AS referenced_schema,
                     ccu.table_name AS referenced_table,
