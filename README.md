@@ -1,3 +1,5 @@
+![JPA Generator Banner](banner_readme.png)
+
 # Gerador Automático de Classes JPA
 
 Este projeto oferece uma ferramenta completa para automatizar a geração de classes JPA (Entity) a partir do esquema de banco de dados PostgreSQL, seguindo padrões consistentes e oferecendo flexibilidade na configuração.
