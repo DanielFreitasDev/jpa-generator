@@ -22,6 +22,8 @@ public final class Inflector {
     private static final List<Rule> SINGULAR_RULES = new ArrayList<>();
     private static final Map<String, String> IRREGULAR = new LinkedHashMap<>(); // plural -> singular
     private static final Set<String> UNCOUNTABLE = new HashSet<>();
+    private static final List<Rule> PLURAL_RULES = new ArrayList<>();
+    private static final Map<String, String> IRREGULAR_PLURAL = new LinkedHashMap<>(); // singular -> plural
 
     static {
         // Incontáveis
@@ -59,12 +61,73 @@ public final class Inflector {
         addSingular("([^ê])s$", "$1");
     }
 
+    static {
+        // ... UNCOUNTABLE e IRREGULAR (plural->singular)
+
+        // Irregulares (singular -> plural)
+        IRREGULAR_PLURAL.put("país", "países");
+        IRREGULAR_PLURAL.put("cão", "cães");
+        IRREGULAR_PLURAL.put("pão", "pães");
+        IRREGULAR_PLURAL.put("mão", "mãos");
+        IRREGULAR_PLURAL.put("alemão", "alemães");
+        IRREGULAR_PLURAL.put("cidadão", "cidadãos");
+        IRREGULAR_PLURAL.put("homem", "homens");
+        IRREGULAR_PLURAL.put("mulher", "mulheres");
+        IRREGULAR_PLURAL.put("mal", "males");
+        IRREGULAR_PLURAL.put("status", "status");
+
+        addPlural("(japon|escoc|ingl|dinamarqu|fregu|portugu)ês$", "$1eses");
+        addPlural("ão$", "ões");
+        addPlural("ao$", "oes"); // raro, mas ocorre
+        addPlural("m$", "ns");
+        addPlural("il$", "is");
+        addPlural("el$", "éis");
+        addPlural("ol$", "óis");
+        addPlural("ul$", "uis");
+        addPlural("al$", "ais");
+        addPlural("ul$", "uis");
+        addPlural("r$", "res");
+        addPlural("z$", "zes");
+        addPlural("s$", "ses");
+        addPlural("$", "s");
+    }
+
+    private static void addPlural(String regex, String replacement) {
+        PLURAL_RULES.add(new Rule(
+                Pattern.compile(regex, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE),
+                replacement
+        ));
+    }
+
     private static void addSingular(String regex, String replacement) {
         SINGULAR_RULES.add(new Rule(
                 Pattern.compile(regex, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE),
                 replacement
         ));
         // Observe: não invertimos aqui — a inversão é no loop de aplicação.
+    }
+
+    public static String pluralize(String word) {
+        if (word == null || word.isBlank()) return word;
+
+        String lower = word.toLowerCase(Locale.ROOT);
+
+        if (UNCOUNTABLE.contains(lower)) return word;
+
+        for (Map.Entry<String, String> e : IRREGULAR_PLURAL.entrySet()) {
+            if (e.getKey().equalsIgnoreCase(word)) {
+                return applySameCase(word, e.getValue());
+            }
+        }
+
+        for (Rule rule : PLURAL_RULES) {
+            Matcher m = rule.pattern().matcher(word);
+            if (m.find()) {
+                return applySameCase(word, m.replaceAll(rule.replacement()));
+            }
+        }
+
+        return word + "s";
     }
 
     public static String singularize(String word) {
@@ -119,6 +182,7 @@ public final class Inflector {
 
     // Teste rápido
     public static void main(String[] args) {
+        // PLURAL > SINGULAR
         System.out.println(singularize("países"));   // país
         System.out.println(singularize("mulheres")); // mulher
         System.out.println(singularize("corações")); // coração
@@ -129,5 +193,17 @@ public final class Inflector {
         System.out.println(singularize("PAÍSES")); //PAÍS
         System.out.println(singularize("animais")); //animal
         System.out.println(singularize("ANIMAIS")); //ANIMAL
+
+        // SINGULAR > PLURAL
+        System.out.println(pluralize("país"));      // países
+        System.out.println(pluralize("mulher"));    // mulheres
+        System.out.println(pluralize("coração"));   // corações
+        System.out.println(pluralize("lotação"));   // lotações
+        System.out.println(pluralize("status"));    // status
+        System.out.println(pluralize("homem"));     // homens
+        System.out.println(pluralize("animal"));    // animais
+        System.out.println(pluralize("cidadão"));   // cidadãos
+        System.out.println(pluralize("MÃO"));       // MÃOS
+        System.out.println(pluralize("HOMEM"));     // HOMENS
     }
 }

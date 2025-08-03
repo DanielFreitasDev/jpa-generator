@@ -3,6 +3,7 @@ package com.jpagenerator;
 import com.jpagenerator.config.ConfigManager;
 import com.jpagenerator.config.DatabaseConfig;
 import com.jpagenerator.generator.CodeGenerator;
+import com.jpagenerator.generator.CrudGenerator;
 import com.jpagenerator.inspector.DatabaseInspector;
 import com.jpagenerator.model.TableInfo;
 import com.jpagenerator.util.Inflector;
@@ -22,6 +23,7 @@ public class Main {
     private static final ConfigManager configManager = new ConfigManager();
     private static DatabaseInspector inspector;
     private static CodeGenerator generator;
+    private static CrudGenerator crudGenerator;
 
     public static void main(String[] args) {
         try {
@@ -36,6 +38,7 @@ public class Main {
             // Initialize components
             inspector = new DatabaseInspector(config);
             generator = new CodeGenerator(config);
+            crudGenerator = new CrudGenerator(config);
 
             // Execute based on arguments
             if (cmdArgs.interactive || (cmdArgs.schema == null && cmdArgs.table == null)) {
@@ -370,6 +373,19 @@ public class Main {
             generatedFiles.add(filePath);
 
             System.out.println("✓ " + className + ".java gerado em: " + filePath);
+
+            System.out.print("\nDeseja gerar um CRUD Spring Boot para a entidade '" + className + "'? (s/n) [n]: ");
+            String choice = scanner.nextLine().trim().toLowerCase();
+            if (choice.equals("s") || choice.equals("sim")) {
+                try {
+                    List<String> crudFiles = crudGenerator.generateCrud(tableInfo, className, classNames);
+                    generatedFiles.addAll(crudFiles);
+                    System.out.println("✓ CRUD gerado com sucesso para " + className);
+                } catch (Exception e) {
+                    logger.error("Falha ao gerar o CRUD para {}", className, e);
+                    System.err.println("✗ Erro ao gerar o CRUD para " + className + ": " + e.getMessage());
+                }
+            }
         }
 
         System.out.println("\n=== Resumo ===");
