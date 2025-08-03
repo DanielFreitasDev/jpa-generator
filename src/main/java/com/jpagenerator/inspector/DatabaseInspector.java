@@ -6,6 +6,7 @@ import com.jpagenerator.model.ForeignKeyInfo;
 import com.jpagenerator.model.PrimaryKeyInfo;
 import com.jpagenerator.model.SequenceInfo;
 import com.jpagenerator.model.TableInfo;
+import com.jpagenerator.model.UniqueConstraintInfo;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -13,8 +14,11 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
+@SuppressWarnings("SqlNoDataSourceInspection")
 public class DatabaseInspector {
     private final DatabaseConfig config;
     private Connection connection;
@@ -50,8 +54,8 @@ public class DatabaseInspector {
         List<String> schemas = new ArrayList<>();
 
         String query = """
-                SELECT schema_name 
-                FROM information_schema.schemata 
+                SELECT schema_name
+                FROM information_schema.schemata
                 WHERE schema_name NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
                 ORDER BY schema_name
                 """;
@@ -71,8 +75,8 @@ public class DatabaseInspector {
         List<String> tables = new ArrayList<>();
 
         String query = """
-                SELECT table_name 
-                FROM information_schema.tables 
+                SELECT table_name
+                FROM information_schema.tables
                 WHERE table_schema = ? AND table_type = 'BASE TABLE'
                 ORDER BY table_name
                 """;
@@ -104,17 +108,62 @@ public class DatabaseInspector {
         // Get foreign keys
         tableInfo.setForeignKeys(getForeignKeys(schema, tableName));
 
+        // Get unique constraints
+        tableInfo.setUniqueConstraints(getUniqueConstraints(schema, tableName));
+
         // Get sequences (for serial types)
         tableInfo.setSequences(getSequences(schema, tableName));
 
         return tableInfo;
     }
 
+    private List<UniqueConstraintInfo> getUniqueConstraints(String schema, String tableName) throws SQLException {
+        Map<String, List<String>> constraints = new LinkedHashMap<>();
+
+        String query = """
+                SELECT
+                    kcu.constraint_name,
+                    kcu.column_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                    ON tc.constraint_name = kcu.constraint_name
+                    AND tc.table_schema = kcu.table_schema
+                WHERE tc.constraint_type = 'UNIQUE'
+                    AND tc.table_schema = ?
+                    AND tc.table_name = ?
+                ORDER BY kcu.constraint_name, kcu.ordinal_position
+                """;
+
+        try (PreparedStatement stmt = connection.prepareStatement(query)) {
+            stmt.setString(1, schema);
+            stmt.setString(2, tableName);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    String constraintName = rs.getString("constraint_name");
+                    String columnName = rs.getString("column_name");
+                    constraints.computeIfAbsent(constraintName, k -> new ArrayList<>()).add(columnName);
+                }
+            }
+        }
+
+        List<UniqueConstraintInfo> uniqueConstraints = new ArrayList<>();
+        for (Map.Entry<String, List<String>> entry : constraints.entrySet()) {
+            UniqueConstraintInfo uci = new UniqueConstraintInfo();
+            uci.setConstraintName(entry.getKey());
+            uci.setColumnNames(entry.getValue());
+            uniqueConstraints.add(uci);
+        }
+
+        return uniqueConstraints;
+    }
+
+
     private List<ColumnInfo> getColumns(String schema, String tableName) throws SQLException {
         List<ColumnInfo> columns = new ArrayList<>();
 
         String query = """
-                SELECT 
+                SELECT
                     c.column_name,
                     c.data_type,
                     c.character_maximum_length,
@@ -154,12 +203,12 @@ public class DatabaseInspector {
 
     private PrimaryKeyInfo getPrimaryKey(String schema, String tableName) throws SQLException {
         String query = """
-                SELECT 
+                SELECT
                     kcu.column_name,
                     kcu.ordinal_position
                 FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu 
-                    ON tc.constraint_name = kcu.constraint_name 
+                JOIN information_schema.key_column_usage kcu
+                    ON tc.constraint_name = kcu.constraint_name
                     AND tc.table_schema = kcu.table_schema
                 WHERE tc.constraint_type = 'PRIMARY KEY'
                     AND tc.table_schema = ?
@@ -200,10 +249,10 @@ public class DatabaseInspector {
                     ccu.column_name AS referenced_column,
                     tc.constraint_name
                 FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu 
+                JOIN information_schema.key_column_usage kcu
                     ON tc.constraint_name = kcu.constraint_name
                     AND tc.table_schema = kcu.table_schema
-                JOIN information_schema.constraint_column_usage ccu 
+                JOIN information_schema.constraint_column_usage ccu
                     ON ccu.constraint_name = tc.constraint_name
                     AND ccu.table_schema = tc.table_schema
                 WHERE tc.constraint_type = 'FOREIGN KEY'
@@ -236,15 +285,15 @@ public class DatabaseInspector {
         List<SequenceInfo> sequences = new ArrayList<>();
 
         String query = """
-                SELECT 
+                SELECT
                     c.column_name,
                     s.sequence_name,
                     s.sequence_schema
                 FROM information_schema.columns c
-                LEFT JOIN information_schema.sequences s 
+                LEFT JOIN information_schema.sequences s
                     ON s.sequence_name = c.table_name || '_' || c.column_name || '_seq'
                     AND s.sequence_schema = c.table_schema
-                WHERE c.table_schema = ? 
+                WHERE c.table_schema = ?
                     AND c.table_name = ?
                     AND c.column_default LIKE 'nextval%'
                 """;
@@ -270,8 +319,8 @@ public class DatabaseInspector {
 
     public boolean tableExists(String schema, String tableName) throws SQLException {
         String query = """
-                SELECT 1 
-                FROM information_schema.tables 
+                SELECT 1
+                FROM information_schema.tables
                 WHERE table_schema = ? AND table_name = ? AND table_type = 'BASE TABLE'
                 """;
 

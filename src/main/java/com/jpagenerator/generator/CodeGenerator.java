@@ -5,6 +5,7 @@ import com.jpagenerator.model.ColumnInfo;
 import com.jpagenerator.model.ForeignKeyInfo;
 import com.jpagenerator.model.SequenceInfo;
 import com.jpagenerator.model.TableInfo;
+import com.jpagenerator.model.UniqueConstraintInfo;
 import com.jpagenerator.util.Inflector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,9 +13,12 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 public class CodeGenerator {
     private static final Logger logger = LoggerFactory.getLogger(CodeGenerator.class);
@@ -57,6 +61,11 @@ public class CodeGenerator {
         imports.add(persistencePackage + ".GenerationType");
         imports.add(persistencePackage + ".Id");
         imports.add(persistencePackage + ".Table");
+
+        // Check for unique constraints
+        if (tableInfo.getUniqueConstraints() != null && !tableInfo.getUniqueConstraints().isEmpty()) {
+            imports.add(persistencePackage + ".UniqueConstraint");
+        }
 
         // Check if we need sequence generator
         boolean hasSequence = tableInfo.getColumns().stream()
@@ -135,7 +144,24 @@ public class CodeGenerator {
         if (tableInfo.getSchema() != null) {
             code.append(", schema = \"").append(tableInfo.getSchema()).append("\"");
         }
+
+        // Add unique constraints if they exist
+        if (tableInfo.getUniqueConstraints() != null && !tableInfo.getUniqueConstraints().isEmpty()) {
+            code.append(",\n        uniqueConstraints = {\n");
+            List<String> constraintStrings = new ArrayList<>();
+            for (UniqueConstraintInfo uci : tableInfo.getUniqueConstraints()) {
+                String columns = uci.getColumnNames().stream()
+                        .map(c -> "\"" + c + "\"")
+                        .collect(Collectors.joining(", "));
+                constraintStrings.add(String.format("                @UniqueConstraint(name = \"%s\", columnNames = {%s})",
+                        uci.getConstraintName(), columns));
+            }
+            code.append(String.join(",\n", constraintStrings));
+            code.append("\n        }");
+        }
+
         code.append(")\n");
+
 
         // Class declaration
         code.append("public class ").append(className).append(" {\n");
