@@ -1,10 +1,12 @@
 package com.jpagenerator.generator;
 
 import com.jpagenerator.config.DatabaseConfig;
+import com.jpagenerator.util.CodeGeneratorHelper;
 import com.jpagenerator.model.ColumnInfo;
 import com.jpagenerator.model.TableInfo;
 import com.jpagenerator.model.UniqueConstraintInfo;
 import com.jpagenerator.util.Inflector;
+import lombok.AllArgsConstructor;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -12,21 +14,19 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Random;
 
 
 /**
  * Gera arquivos de CRUD do Spring Boot (Controller, Service, Repository, DTOs) para uma determinada entidade.
  */
+
+@AllArgsConstructor
 public class CrudGenerator {
 
     private final DatabaseConfig config;
     private final CodeGeneratorHelper helper;
-
-    public CrudGenerator(DatabaseConfig config) {
-        this.config = config;
-        this.helper = new CodeGeneratorHelper();
-    }
+    private final Random random = new Random();
 
     /**
      * Metodo principal para gerar todos os arquivos de CRUD para uma dada entidade.
@@ -261,7 +261,7 @@ public class CrudGenerator {
         if (tableInfo.getUniqueConstraints() != null) {
             for (UniqueConstraintInfo constraint : tableInfo.getUniqueConstraints()) {
                 if (constraint.getColumnNames().size() == 1) {
-                    String columnName = constraint.getColumnNames().get(0);
+                    String columnName = constraint.getColumnNames().getFirst();
                     ColumnInfo columnInfo = tableInfo.getColumns().stream().filter(c -> c.getName().equals(columnName)).findFirst().orElse(null);
                     if (columnInfo != null) {
                         String methodName = "existsBy" + Inflector.toPascalCase(helper.toCamelCase(columnName));
@@ -294,7 +294,7 @@ public class CrudGenerator {
         code.append("@JsonIgnoreProperties(ignoreUnknown = true)\n");
         code.append("public class ").append(dtoName).append(" implements Serializable {\n\n");
         code.append("    @Serial\n");
-        code.append("    private static final long serialVersionUID = 1L; // Ou um long aleatório\n\n");
+        code.append("    private static final long serialVersionUID = ").append(random.nextLong()).append("L;\n\n");
 
         for (ColumnInfo col : columns) {
             String fieldName = helper.toCamelCase(col.getName());
@@ -336,7 +336,7 @@ public class CrudGenerator {
         code.append("@Data\n");
         code.append("public class ").append(dtoName).append(" implements Serializable {\n\n");
         code.append("    @Serial\n");
-        code.append("    private static final long serialVersionUID = 1L; // Ou um long aleatório\n\n");
+        code.append("    private static final long serialVersionUID = ").append(random.nextLong()).append("L;\n\n");
 
         for (ColumnInfo col : tableInfo.getColumns()) {
             if (helper.isResponseField(col.getName())) {
@@ -374,7 +374,7 @@ public class CrudGenerator {
 
         for (UniqueConstraintInfo constraint : tableInfo.getUniqueConstraints()) {
             if (constraint.getColumnNames().size() == 1) { // Lida apenas com constraints de coluna única por agora
-                String columnName = constraint.getColumnNames().get(0);
+                String columnName = constraint.getColumnNames().getFirst();
                 String camelCaseName = helper.toCamelCase(columnName);
                 String pascalCaseName = Inflector.toPascalCase(camelCaseName);
                 String getter = "get" + pascalCaseName;
@@ -391,85 +391,5 @@ public class CrudGenerator {
             }
         }
         return checks.toString();
-    }
-}
-
-
-/**
- * Classe de ajuda com métodos partilhados entre CodeGenerator e CrudGenerator.
- */
-class CodeGeneratorHelper {
-
-    String toCamelCase(String input) {
-        if (input == null || input.isEmpty()) return input;
-        String[] parts = input.split("_");
-        StringBuilder result = new StringBuilder(parts[0].toLowerCase());
-        for (int i = 1; i < parts.length; i++) {
-            if (!parts[i].isEmpty()) {
-                result.append(Character.toUpperCase(parts[i].charAt(0)));
-                if (parts[i].length() > 1) {
-                    result.append(parts[i].substring(1).toLowerCase());
-                }
-            }
-        }
-        return result.toString();
-    }
-
-    String mapSqlTypeToJava(ColumnInfo column) {
-        String dataType = column.getDataType().toLowerCase();
-        return switch (dataType) {
-            case "smallint", "smallserial", "integer", "serial" -> "Integer";
-            case "bigint", "bigserial" -> "Long";
-            case "character varying", "varchar", "text", "char", "character" -> "String";
-            case "boolean" -> "Boolean";
-            case "timestamp", "timestamptz", "timestamp with time zone", "timestamp without time zone" -> "Instant";
-            case "date" -> "java.time.LocalDate";
-            case "time" -> "java.time.LocalTime";
-            case "numeric", "decimal" -> "java.math.BigDecimal";
-            case "real" -> "Float";
-            case "double precision" -> "Double";
-            case "uuid" -> "java.util.UUID";
-            default -> "String";
-        };
-    }
-
-    String getPrimaryKeyType(TableInfo tableInfo) {
-        if (tableInfo.getPrimaryKey() != null && !tableInfo.getPrimaryKey().getColumnNames().isEmpty()) {
-            String pkColumnName = tableInfo.getPrimaryKey().getColumnNames().get(0);
-            return tableInfo.getColumns().stream()
-                    .filter(c -> c.getName().equals(pkColumnName))
-                    .findFirst()
-                    .map(this::mapSqlTypeToJava)
-                    .orElse("Long");
-        }
-        return "Long"; // Usa Long como padrão se nenhuma PK for encontrada
-    }
-
-    List<ColumnInfo> getUpdatableColumns(TableInfo tableInfo) {
-        return tableInfo.getColumns().stream()
-                .filter(c -> !c.isPrimaryKey(tableInfo.getPrimaryKey()) && !isAuditField(c.getName()))
-                .collect(Collectors.toList());
-    }
-
-    boolean hasField(TableInfo tableInfo, String fieldName) {
-        return tableInfo.getColumns().stream().anyMatch(c -> c.getName().equalsIgnoreCase(fieldName));
-    }
-
-    boolean isAuditField(String columnName) {
-        return "created_at".equalsIgnoreCase(columnName) || "updated_at".equalsIgnoreCase(columnName);
-    }
-
-    boolean isResponseField(String columnName) {
-        return true; // Todos os campos são incluídos por padrão
-    }
-
-    boolean needsInstant(TableInfo tableInfo) {
-        return tableInfo.getColumns().stream()
-                .anyMatch(col -> "timestamp".equals(col.getDataType()) || "timestamptz".equals(col.getDataType()));
-    }
-
-    boolean needsBigDecimal(TableInfo tableInfo) {
-        return tableInfo.getColumns().stream()
-                .anyMatch(col -> "numeric".equals(col.getDataType()) || "decimal".equals(col.getDataType()));
     }
 }

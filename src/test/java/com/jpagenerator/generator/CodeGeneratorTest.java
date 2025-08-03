@@ -6,6 +6,7 @@ import com.jpagenerator.model.ForeignKeyInfo;
 import com.jpagenerator.model.PrimaryKeyInfo;
 import com.jpagenerator.model.SequenceInfo;
 import com.jpagenerator.model.TableInfo;
+import com.jpagenerator.util.CodeGeneratorHelper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,6 +30,7 @@ class CodeGeneratorTest {
 
     private CodeGenerator generator;
     private DatabaseConfig config;
+    private CodeGeneratorHelper helper;
 
     @BeforeEach
     void setUp() {
@@ -38,7 +40,9 @@ class CodeGeneratorTest {
         config.setOutputDirectory(tempDir.toString());
         config.setUseLombok(true);
 
-        generator = new CodeGenerator(config);
+        helper = new CodeGeneratorHelper();
+
+        generator = new CodeGenerator(config, helper);
     }
 
     @Test
@@ -119,7 +123,7 @@ class CodeGeneratorTest {
     void testJavaVersionCompatibility() throws IOException {
         // Given - Java 8 mode
         config.setJavaVersion(8);
-        generator = new CodeGenerator(config);
+        generator = new CodeGenerator(config, helper);
 
         TableInfo tableInfo = createSimpleTableInfo();
         String className = "Perfil";

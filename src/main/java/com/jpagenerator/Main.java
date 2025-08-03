@@ -6,6 +6,7 @@ import com.jpagenerator.generator.CodeGenerator;
 import com.jpagenerator.generator.CrudGenerator;
 import com.jpagenerator.inspector.DatabaseInspector;
 import com.jpagenerator.model.TableInfo;
+import com.jpagenerator.util.CodeGeneratorHelper;
 import com.jpagenerator.util.Inflector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,10 +36,12 @@ public class Main {
             // Load or create configuration
             DatabaseConfig config = loadConfiguration();
 
+            CodeGeneratorHelper helper = new CodeGeneratorHelper();
+
             // Initialize components
             inspector = new DatabaseInspector(config);
-            generator = new CodeGenerator(config);
-            crudGenerator = new CrudGenerator(config);
+            generator = new CodeGenerator(config, helper);
+            crudGenerator = new CrudGenerator(config, helper);
 
             // Execute based on arguments
             if (cmdArgs.interactive || (cmdArgs.schema == null && cmdArgs.table == null)) {

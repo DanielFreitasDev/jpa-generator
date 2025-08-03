@@ -6,7 +6,9 @@ import com.jpagenerator.model.ForeignKeyInfo;
 import com.jpagenerator.model.SequenceInfo;
 import com.jpagenerator.model.TableInfo;
 import com.jpagenerator.model.UniqueConstraintInfo;
+import com.jpagenerator.util.CodeGeneratorHelper;
 import com.jpagenerator.util.Inflector;
+import lombok.AllArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,13 +22,11 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+@AllArgsConstructor
 public class CodeGenerator {
     private static final Logger logger = LoggerFactory.getLogger(CodeGenerator.class);
     private final DatabaseConfig config;
-
-    public CodeGenerator(DatabaseConfig config) {
-        this.config = config;
-    }
+    private final CodeGeneratorHelper helper;
 
     public String generateEntity(TableInfo tableInfo, String className, Map<String, String> foreignKeyHandling, Map<String, String> allClassNames) throws IOException {
         StringBuilder code = new StringBuilder();
@@ -250,8 +250,8 @@ public class CodeGenerator {
         code.append(")\n");
 
         // Field declaration
-        String javaType = mapSqlTypeToJava(column);
-        String fieldName = toCamelCase(column.getName());
+        String javaType = helper.mapSqlTypeToJava(column);
+        String fieldName = helper.toCamelCase(column.getName());
 
         code.append("    private ").append(javaType).append(" ").append(fieldName).append(";");
     }
@@ -276,28 +276,9 @@ public class CodeGenerator {
         // Field declaration
         String referencedTableName = fk.getReferencedTable();
         String referencedClassName = allClassNames.getOrDefault(referencedTableName, Inflector.toPascalCase(referencedTableName));
-        String fieldName = toCamelCase(fk.getColumnName().replaceAll("_id$", "")); // Remove _id suffix for a cleaner name
+        String fieldName = helper.toCamelCase(fk.getColumnName().replaceAll("_id$", "")); // Remove _id suffix for a cleaner name
 
         code.append("    private ").append(referencedClassName).append(" ").append(fieldName).append(";");
-    }
-
-    private String mapSqlTypeToJava(ColumnInfo column) {
-        String dataType = column.getDataType().toLowerCase();
-
-        return switch (dataType) {
-            case "smallint", "smallserial", "integer", "serial" -> "Integer";
-            case "bigint", "bigserial" -> "Long";
-            case "character varying", "varchar", "text", "char", "character" -> "String";
-            case "boolean" -> "Boolean";
-            case "timestamp", "timestamptz", "timestamp with time zone", "timestamp without time zone" -> "Instant";
-            case "date" -> "LocalDate";
-            case "time" -> "LocalTime";
-            case "numeric", "decimal" -> "BigDecimal";
-            case "real" -> "Float";
-            case "double precision" -> "Double";
-            case "uuid" -> "UUID";
-            default -> "String"; // Default fallback
-        };
     }
 
     private String formatDefaultValue(String defaultValue) {
@@ -313,24 +294,6 @@ public class CodeGenerator {
 
         // Handle other literals
         return "'" + defaultValue + "'";
-    }
-
-    private String toCamelCase(String input) {
-        if (input == null || input.isEmpty()) return input;
-
-        String[] parts = input.split("_");
-        StringBuilder result = new StringBuilder(parts[0].toLowerCase());
-
-        for (int i = 1; i < parts.length; i++) {
-            if (!parts[i].isEmpty()) {
-                result.append(Character.toUpperCase(parts[i].charAt(0)));
-                if (parts[i].length() > 1) {
-                    result.append(parts[i].substring(1).toLowerCase());
-                }
-            }
-        }
-
-        return result.toString();
     }
 
     private String saveToFile(String className, String code) throws IOException {
