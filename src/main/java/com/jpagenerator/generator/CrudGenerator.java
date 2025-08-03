@@ -101,8 +101,8 @@ public class CrudGenerator {
 
         // Create
         code.append("    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)\n");
-        code.append("    public ResponseEntity<").append(responseDtoName).append("> create(@Valid @RequestBody ").append(requestDtoName).append(" requestDto) {\n");
-        code.append("        ").append(responseDtoName).append(" createdItem = ").append(variableName).append("Service.create(requestDto);\n");
+        code.append("    public ResponseEntity<").append(responseDtoName).append("> create(@Valid @RequestBody ").append(requestDtoName).append(" request) {\n");
+        code.append("        ").append(responseDtoName).append(" createdItem = ").append(variableName).append("Service.create(request);\n");
         code.append("        return ResponseEntity.status(HttpStatus.CREATED).body(createdItem);\n");
         code.append("    }\n\n");
 
@@ -110,8 +110,8 @@ public class CrudGenerator {
         code.append("    @PutMapping(value = \"/{id}\", consumes = MediaType.APPLICATION_JSON_VALUE)\n");
         code.append("    public ResponseEntity<").append(responseDtoName).append("> update(\n");
         code.append("            @PathVariable Long id,\n");
-        code.append("            @Valid @RequestBody ").append(requestDtoName).append(" requestDto) {\n");
-        code.append("        ").append(responseDtoName).append(" updatedItem = ").append(variableName).append("Service.update(id, requestDto);\n");
+        code.append("            @Valid @RequestBody ").append(requestDtoName).append(" request) {\n");
+        code.append("        ").append(responseDtoName).append(" updatedItem = ").append(variableName).append("Service.update(id, request);\n");
         code.append("        return ResponseEntity.ok(updatedItem);\n");
         code.append("    }\n\n");
 
@@ -164,7 +164,7 @@ public class CrudGenerator {
         code.append("    @Transactional(readOnly = true)\n");
         code.append("    public Page<").append(responseDtoName).append("> findAll(Pageable pageable) {\n");
         code.append("        return ").append(variableName).append("Repository.findAll(pageable)\n");
-        code.append("                .map(this::mapToResponseDto);\n");
+        code.append("                .map(this::mapToResponse);\n");
         code.append("    }\n\n");
 
         // findById
@@ -172,40 +172,40 @@ public class CrudGenerator {
         code.append("    public ").append(responseDtoName).append(" findById(Long id) {\n");
         code.append("        ").append(className).append(" ").append(variableName).append(" = ").append(variableName).append("Repository.findById(id)\n");
         code.append("                .orElseThrow(() -> new RuntimeException(\"").append(className).append(" não encontrado(a) com ID: \" + id));\n");
-        code.append("        return mapToResponseDto(").append(variableName).append(");\n");
+        code.append("        return mapToResponse(").append(variableName).append(");\n");
         code.append("    }\n\n");
 
         // create
         code.append("    @Transactional(rollbackFor = {Exception.class})\n");
-        code.append("    public ").append(responseDtoName).append(" create(").append(requestDtoName).append(" requestDto) {\n");
-        code.append(generateUniqueChecks(tableInfo, variableName, "requestDto", false));
-        code.append("        ").append(className).append(" ").append(variableName).append(" = mapToEntity(requestDto);\n");
+        code.append("    public ").append(responseDtoName).append(" create(").append(requestDtoName).append(" request) {\n");
+        code.append(generateUniqueChecks(tableInfo, variableName, "request", false));
+        code.append("        ").append(className).append(" ").append(variableName).append(" = mapToEntity(request);\n");
         if (helper.hasField(tableInfo, "createdAt")) {
             code.append("        Instant now = Instant.now();\n");
             code.append("        ").append(variableName).append(".setCreatedAt(now);\n");
             code.append("        ").append(variableName).append(".setUpdatedAt(now);\n");
         }
         code.append("        ").append(className).append(" saved").append(className).append(" = ").append(variableName).append("Repository.save(").append(variableName).append(");\n");
-        code.append("        return mapToResponseDto(saved").append(className).append(");\n");
+        code.append("        return mapToResponse(saved").append(className).append(");\n");
         code.append("    }\n\n");
 
         // update
         code.append("    @Transactional(rollbackFor = {Exception.class})\n");
-        code.append("    public ").append(responseDtoName).append(" update(Long id, ").append(requestDtoName).append(" requestDto) {\n");
+        code.append("    public ").append(responseDtoName).append(" update(Long id, ").append(requestDtoName).append(" request) {\n");
         code.append("        ").append(className).append(" ").append(variableName).append(" = ").append(variableName).append("Repository.findById(id)\n");
         code.append("                .orElseThrow(() -> new RuntimeException(\"").append(className).append(" não encontrado(a) com ID: \" + id));\n\n");
-        code.append(generateUniqueChecks(tableInfo, variableName, "requestDto", true));
+        code.append(generateUniqueChecks(tableInfo, variableName, "request", true));
         for (ColumnInfo col : helper.getUpdatableColumns(tableInfo)) {
             String fieldName = helper.toCamelCase(col.getName());
             String setter = "set" + Inflector.toPascalCase(fieldName);
             String getter = "get" + Inflector.toPascalCase(fieldName);
-            code.append("        ").append(variableName).append(".").append(setter).append("(requestDto.").append(getter).append("());\n");
+            code.append("        ").append(variableName).append(".").append(setter).append("(request.").append(getter).append("());\n");
         }
         if (helper.hasField(tableInfo, "updatedAt")) {
             code.append("        ").append(variableName).append(".setUpdatedAt(Instant.now());\n\n");
         }
         code.append("        ").append(className).append(" updated").append(className).append(" = ").append(variableName).append("Repository.save(").append(variableName).append(");\n");
-        code.append("        return mapToResponseDto(updated").append(className).append(");\n");
+        code.append("        return mapToResponse(updated").append(className).append(");\n");
         code.append("    }\n\n");
 
         // delete
@@ -229,8 +229,8 @@ public class CrudGenerator {
         code.append("        return ").append(variableName).append(";\n");
         code.append("    }\n\n");
 
-        // mapToResponseDto
-        code.append("    private ").append(responseDtoName).append(" mapToResponseDto(").append(className).append(" ").append(variableName).append(") {\n");
+        // mapToResponse
+        code.append("    private ").append(responseDtoName).append(" mapToResponse(").append(className).append(" ").append(variableName).append(") {\n");
         code.append("        ").append(responseDtoName).append(" response = new ").append(responseDtoName).append("();\n");
         for (ColumnInfo col : tableInfo.getColumns()) {
             if (helper.isResponseField(col.getName())) {
@@ -386,7 +386,7 @@ public class CrudGenerator {
                 } else {
                     checks.append("        if (").append(repoVar).append(".").append(repoMethod).append("(").append(dtoVar).append(".").append(getter).append("())) {\n");
                 }
-                checks.append("            throw new RuntimeException(\"").append(pascalCaseName).append(" já cadastrado: \" + ").append(dtoVar).append(".").append(getter).append("());\n");
+                checks.append("            throw new RuntimeException(\"").append(pascalCaseName).append(" já cadastrado(a): \" + ").append(dtoVar).append(".").append(getter).append("());\n");
                 checks.append("        }\n\n");
             }
         }
