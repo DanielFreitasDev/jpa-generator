@@ -221,9 +221,8 @@ public class CrudGenerator {
         code.append("    private ").append(className).append(" mapToEntity(").append(requestDtoName).append(" request) {\n");
         code.append("        ").append(className).append(" ").append(variableName).append(" = new ").append(className).append("();\n");
         for (ColumnInfo col : helper.getUpdatableColumns(tableInfo)) {
-            String fieldName = helper.toCamelCase(col.getName());
-            String setter = "set" + Inflector.toPascalCase(fieldName);
-            String getter = "get" + Inflector.toPascalCase(fieldName);
+            String setter = "set" + Inflector.toPascalCase(col.getName());
+            String getter = "get" + Inflector.toPascalCase(col.getName());
             code.append("        ").append(variableName).append(".").append(setter).append("(request.").append(getter).append("());\n");
         }
         code.append("        return ").append(variableName).append(";\n");
@@ -234,9 +233,8 @@ public class CrudGenerator {
         code.append("        ").append(responseDtoName).append(" response = new ").append(responseDtoName).append("();\n");
         for (ColumnInfo col : tableInfo.getColumns()) {
             if (helper.isResponseField(col.getName())) {
-                String fieldName = helper.toCamelCase(col.getName());
-                String setter = "set" + Inflector.toPascalCase(fieldName);
-                String getter = "get" + Inflector.toPascalCase(fieldName);
+                String setter = "set" + Inflector.toPascalCase(col.getName());
+                String getter = "get" + Inflector.toPascalCase(col.getName());
                 code.append("        response.").append(setter).append("(").append(variableName).append(".").append(getter).append("());\n");
             }
         }
