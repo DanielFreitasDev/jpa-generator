@@ -1,10 +1,11 @@
 package com.jpagenerator.generator;
 
 import com.jpagenerator.config.DatabaseConfig;
-import com.jpagenerator.util.CodeGeneratorHelper;
 import com.jpagenerator.model.ColumnInfo;
+import com.jpagenerator.model.ForeignKeyInfo;
 import com.jpagenerator.model.TableInfo;
 import com.jpagenerator.model.UniqueConstraintInfo;
+import com.jpagenerator.util.CodeGeneratorHelper;
 import com.jpagenerator.util.Inflector;
 import lombok.AllArgsConstructor;
 
@@ -15,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 
 /**
@@ -31,13 +33,13 @@ public class CrudGenerator {
     /**
      * Metodo principal para gerar todos os arquivos de CRUD para uma dada entidade.
      */
-    public List<String> generateCrud(TableInfo tableInfo, String className, Map<String, String> allClassNames) throws IOException {
+    public List<String> generateCrud(TableInfo tableInfo, String className, Map<String, String> allClassNames, Map<String, String> foreignKeyHandling) throws IOException {
         List<String> generatedFiles = new ArrayList<>();
 
-        generatedFiles.add(generateRequestDto(tableInfo, className));
+        generatedFiles.add(generateRequestDto(tableInfo, className, allClassNames, foreignKeyHandling));
         generatedFiles.add(generateResponseDto(tableInfo, className));
         generatedFiles.add(generateRepository(tableInfo, className));
-        generatedFiles.add(generateService(tableInfo, className, allClassNames));
+        generatedFiles.add(generateService(tableInfo, className, allClassNames, foreignKeyHandling));
         generatedFiles.add(generateController(className));
 
         return generatedFiles;
@@ -127,15 +129,20 @@ public class CrudGenerator {
         return saveToFile(controllerName, code.toString(), "controller/v1");
     }
 
-    private String generateService(TableInfo tableInfo, String className, Map<String, String> allClassNames) throws IOException {
+    private String generateService(TableInfo tableInfo, String className, Map<String, String> allClassNames, Map<String, String> foreignKeyHandling) throws IOException {
         String serviceName = className + "Service";
         String repositoryName = className + "Repository";
         String requestDtoName = className + "Request";
         String responseDtoName = className + "Response";
         String variableName = helper.toCamelCase(className);
+        String basePackage = config.getBasePackage();
+
+        List<ForeignKeyInfo> relationshipFks = tableInfo.getForeignKeys() != null ?
+                tableInfo.getForeignKeys().stream()
+                        .filter(fk -> "relationship".equals(foreignKeyHandling.get(fk.getColumnName())))
+                        .collect(Collectors.toList()) : new ArrayList<>();
 
         StringBuilder code = new StringBuilder();
-        String basePackage = config.getBasePackage();
 
         code.append("package ").append(basePackage).append(".service;\n\n");
 
@@ -144,21 +151,33 @@ public class CrudGenerator {
         code.append("import ").append(basePackage).append(".dto.response.").append(responseDtoName).append(";\n");
         code.append("import ").append(basePackage).append(".model.").append(className).append(";\n");
         code.append("import ").append(basePackage).append(".repository.").append(repositoryName).append(";\n");
+
+        for (ForeignKeyInfo fk : relationshipFks) {
+            String relatedClassName = allClassNames.get(fk.getReferencedTable());
+            code.append("import ").append(basePackage).append(".model.").append(relatedClassName).append(";\n");
+        }
+
         code.append("import lombok.RequiredArgsConstructor;\n");
         code.append("import org.springframework.data.domain.Page;\n");
         code.append("import org.springframework.data.domain.Pageable;\n");
         code.append("import org.springframework.stereotype.Service;\n");
         code.append("import org.springframework.transaction.annotation.Transactional;\n");
-        code.append("import org.springframework.validation.annotation.Validated;\n");
         code.append("import java.time.Instant;\n\n");
 
-        // Definição da classe
+        // Class Definition
         code.append("@Service\n");
         code.append("@RequiredArgsConstructor\n");
-        code.append("@Validated\n");
         code.append("public class ").append(serviceName).append(" {\n\n");
 
-        code.append("    private final ").append(repositoryName).append(" ").append(variableName).append("Repository;\n\n");
+        code.append("    private final ").append(repositoryName).append(" ").append(variableName).append("Repository;\n");
+
+        for (ForeignKeyInfo fk : relationshipFks) {
+            String relatedClassName = allClassNames.get(fk.getReferencedTable());
+            String relatedService = relatedClassName + "Service";
+            String relatedServiceVar = helper.toCamelCase(relatedClassName) + "Service";
+            code.append("    private final ").append(relatedService).append(" ").append(relatedServiceVar).append(";\n");
+        }
+        code.append("\n");
 
         // findAll
         code.append("    @Transactional(readOnly = true)\n");
@@ -170,46 +189,51 @@ public class CrudGenerator {
         // findById
         code.append("    @Transactional(readOnly = true)\n");
         code.append("    public ").append(responseDtoName).append(" findById(Long id) {\n");
-        code.append("        ").append(className).append(" ").append(variableName).append(" = ").append(variableName).append("Repository.findById(id)\n");
+        code.append("        return ").append(variableName).append("Repository.findById(id)\n");
+        code.append("                .map(this::mapToResponse)\n");
         code.append("                .orElseThrow(() -> new RuntimeException(\"").append(className).append(" não encontrado(a) com ID: \" + id));\n");
-        code.append("        return mapToResponse(").append(variableName).append(");\n");
         code.append("    }\n\n");
 
         // create
-        code.append("    @Transactional(rollbackFor = {Exception.class})\n");
+        code.append("    @Transactional\n");
         code.append("    public ").append(responseDtoName).append(" create(").append(requestDtoName).append(" request) {\n");
         code.append(generateUniqueChecks(tableInfo, variableName, "request", false));
-        code.append("        ").append(className).append(" ").append(variableName).append(" = mapToEntity(request);\n");
+        code.append(generateFkExistenceChecks(relationshipFks, allClassNames));
+
+        code.append("        ").append(className).append(" ").append(variableName).append(" = new ").append(className).append("();\n");
+        code.append("        mapToEntity(").append(variableName).append(", request);\n");
+
         if (helper.hasField(tableInfo, "createdAt")) {
             code.append("        Instant now = Instant.now();\n");
             code.append("        ").append(variableName).append(".setCreatedAt(now);\n");
-            code.append("        ").append(variableName).append(".setUpdatedAt(now);\n");
         }
-        code.append("        ").append(className).append(" saved").append(className).append(" = ").append(variableName).append("Repository.save(").append(variableName).append(");\n");
-        code.append("        return mapToResponse(saved").append(className).append(");\n");
+        if (helper.hasField(tableInfo, "updatedAt")) {
+            code.append("        ").append(variableName).append(".setUpdatedAt(Instant.now());\n");
+        }
+
+        code.append("        ").append(className).append(" savedEntity = ").append(variableName).append("Repository.save(").append(variableName).append(");\n");
+        code.append("        return mapToResponse(savedEntity);\n");
         code.append("    }\n\n");
 
         // update
-        code.append("    @Transactional(rollbackFor = {Exception.class})\n");
+        code.append("    @Transactional\n");
         code.append("    public ").append(responseDtoName).append(" update(Long id, ").append(requestDtoName).append(" request) {\n");
         code.append("        ").append(className).append(" ").append(variableName).append(" = ").append(variableName).append("Repository.findById(id)\n");
         code.append("                .orElseThrow(() -> new RuntimeException(\"").append(className).append(" não encontrado(a) com ID: \" + id));\n\n");
         code.append(generateUniqueChecks(tableInfo, variableName, "request", true));
-        for (ColumnInfo col : helper.getUpdatableColumns(tableInfo)) {
-            String fieldName = helper.toCamelCase(col.getName());
-            String setter = "set" + Inflector.toPascalCase(fieldName);
-            String getter = "get" + Inflector.toPascalCase(fieldName);
-            code.append("        ").append(variableName).append(".").append(setter).append("(request.").append(getter).append("());\n");
-        }
+        code.append(generateFkExistenceChecks(relationshipFks, allClassNames));
+
+        code.append("        mapToEntity(").append(variableName).append(", request);\n");
+
         if (helper.hasField(tableInfo, "updatedAt")) {
             code.append("        ").append(variableName).append(".setUpdatedAt(Instant.now());\n\n");
         }
-        code.append("        ").append(className).append(" updated").append(className).append(" = ").append(variableName).append("Repository.save(").append(variableName).append(");\n");
-        code.append("        return mapToResponse(updated").append(className).append(");\n");
+        code.append("        ").append(className).append(" updatedEntity = ").append(variableName).append("Repository.save(").append(variableName).append(");\n");
+        code.append("        return mapToResponse(updatedEntity);\n");
         code.append("    }\n\n");
 
         // delete
-        code.append("    @Transactional(rollbackFor = {Exception.class})\n");
+        code.append("    @Transactional\n");
         code.append("    public void delete(Long id) {\n");
         code.append("        if (!").append(variableName).append("Repository.existsById(id)) {\n");
         code.append("            throw new RuntimeException(\"").append(className).append(" não encontrado(a) com ID: \" + id);\n");
@@ -218,24 +242,45 @@ public class CrudGenerator {
         code.append("    }\n\n");
 
         // mapToEntity
-        code.append("    private ").append(className).append(" mapToEntity(").append(requestDtoName).append(" request) {\n");
-        code.append("        ").append(className).append(" ").append(variableName).append(" = new ").append(className).append("();\n");
+        code.append("    private void mapToEntity(").append(className).append(" entity, ").append(requestDtoName).append(" request) {\n");
         for (ColumnInfo col : helper.getUpdatableColumns(tableInfo)) {
-            String setter = "set" + Inflector.toPascalCase(col.getName());
-            String getter = "get" + Inflector.toPascalCase(col.getName());
-            code.append("        ").append(variableName).append(".").append(setter).append("(request.").append(getter).append("());\n");
+            ForeignKeyInfo fk = relationshipFks.stream().filter(f -> f.getColumnName().equals(col.getName())).findFirst().orElse(null);
+            if (fk != null) {
+                String relatedClassName = allClassNames.get(fk.getReferencedTable());
+                String fieldName = helper.toCamelCase(fk.getColumnName().replaceAll("_id$", ""));
+                String setter = "set" + Inflector.toPascalCase(fieldName);
+                String idGetter = "get" + Inflector.toPascalCase(helper.toCamelCase(fk.getColumnName()));
+                code.append("        ").append(relatedClassName).append(" ").append(fieldName).append(" = new ").append(relatedClassName).append("();\n");
+                code.append("        ").append(fieldName).append(".setId(request.").append(idGetter).append("());\n");
+                code.append("        entity.").append(setter).append("(").append(fieldName).append(");\n");
+            } else {
+                String setter = "set" + Inflector.toPascalCase(col.getName());
+                String getter = "get" + Inflector.toPascalCase(col.getName());
+                code.append("        entity.").append(setter).append("(request.").append(getter).append("());\n");
+            }
         }
-        code.append("        return ").append(variableName).append(";\n");
         code.append("    }\n\n");
 
         // mapToResponse
-        code.append("    private ").append(responseDtoName).append(" mapToResponse(").append(className).append(" ").append(variableName).append(") {\n");
+        code.append("    private ").append(responseDtoName).append(" mapToResponse(").append(className).append(" entity) {\n");
+        code.append("        if (entity == null) return null;\n");
         code.append("        ").append(responseDtoName).append(" response = new ").append(responseDtoName).append("();\n");
         for (ColumnInfo col : tableInfo.getColumns()) {
-            if (helper.isResponseField(col.getName())) {
-                String setter = "set" + Inflector.toPascalCase(col.getName());
-                String getter = "get" + Inflector.toPascalCase(col.getName());
-                code.append("        response.").append(setter).append("(").append(variableName).append(".").append(getter).append("());\n");
+            String fieldName = helper.toCamelCase(col.getName());
+            String setter = "set" + Inflector.toPascalCase(col.getName());
+            String getter = "get" + Inflector.toPascalCase(col.getName());
+
+            ForeignKeyInfo fk = relationshipFks.stream().filter(f -> f.getColumnName().equals(col.getName())).findFirst().orElse(null);
+            if (fk != null) {
+                String relatedObjectGetter = "get" + Inflector.toPascalCase(fieldName.replaceAll("Id$", ""));
+                code.append("        if (entity.").append(relatedObjectGetter).append("() != null) {\n");
+                code.append("            response.").append(setter).append("(entity.").append(relatedObjectGetter).append("().getId());\n");
+                // TODO: Add description fields if needed in the future
+                code.append("        }\n");
+            } else {
+                if (helper.isResponseField(col.getName())) {
+                    code.append("        response.").append(setter).append("(entity.").append(getter).append("());\n");
+                }
             }
         }
         code.append("        return response;\n");
@@ -244,6 +289,24 @@ public class CrudGenerator {
 
         return saveToFile(serviceName, code.toString(), "service");
     }
+
+    private String generateFkExistenceChecks(List<ForeignKeyInfo> fks, Map<String, String> allClassNames) {
+        StringBuilder checks = new StringBuilder();
+        if (fks.isEmpty()) {
+            return "";
+        }
+        checks.append("        // Valida a existência de entidades relacionadas\n");
+        for (ForeignKeyInfo fk : fks) {
+            String relatedClassName = allClassNames.get(fk.getReferencedTable());
+            String relatedServiceVar = helper.toCamelCase(relatedClassName) + "Service";
+            String fkIdField = helper.toCamelCase(fk.getColumnName());
+            String fkIdGetter = "get" + Inflector.toPascalCase(fkIdField);
+            checks.append("        ").append(relatedServiceVar).append(".findById(request.").append(fkIdGetter).append("());\n");
+        }
+        checks.append("\n");
+        return checks.toString();
+    }
+
 
     private String generateRepository(TableInfo tableInfo, String className) throws IOException {
         String repositoryName = className + "Repository";
@@ -274,9 +337,8 @@ public class CrudGenerator {
         return saveToFile(repositoryName, code.toString(), "repository");
     }
 
-    private String generateRequestDto(TableInfo tableInfo, String className) throws IOException {
+    private String generateRequestDto(TableInfo tableInfo, String className, Map<String, String> allClassNames, Map<String, String> foreignKeyHandling) throws IOException {
         String dtoName = className + "Request";
-        List<ColumnInfo> columns = helper.getUpdatableColumns(tableInfo);
         StringBuilder code = new StringBuilder();
 
         code.append("package ").append(config.getBasePackage()).append(".dto.request;\n\n");
@@ -294,7 +356,7 @@ public class CrudGenerator {
         code.append("    @Serial\n");
         code.append("    private static final long serialVersionUID = ").append(random.nextLong()).append("L;\n\n");
 
-        for (ColumnInfo col : columns) {
+        for (ColumnInfo col : helper.getUpdatableColumns(tableInfo)) {
             String fieldName = helper.toCamelCase(col.getName());
             String pascalName = Inflector.toPascalCase(fieldName);
             String javaType = helper.mapSqlTypeToJava(col);
@@ -378,13 +440,12 @@ public class CrudGenerator {
                 String getter = "get" + pascalCaseName;
                 String repoMethod = "existsBy" + pascalCaseName;
 
+                checks.append("        if (");
                 if (isUpdate) {
-                    checks.append("        if (!").append(entityVar).append(".").append(getter).append("().equals(").append(dtoVar).append(".").append(getter).append("()) &&\n");
-                    checks.append("                ").append(repoVar).append(".").append(repoMethod).append("(").append(dtoVar).append(".").append(getter).append("())) {\n");
-                } else {
-                    checks.append("        if (").append(repoVar).append(".").append(repoMethod).append("(").append(dtoVar).append(".").append(getter).append("())) {\n");
+                    checks.append("!entity.").append(getter).append("().equals(request.").append(getter).append("()) && ");
                 }
-                checks.append("            throw new RuntimeException(\"").append(pascalCaseName).append(" já cadastrado(a): \" + ").append(dtoVar).append(".").append(getter).append("());\n");
+                checks.append(repoVar).append(".").append(repoMethod).append("(request.").append(getter).append("())) {\n");
+                checks.append("            throw new RuntimeException(\"").append(pascalCaseName).append(" já cadastrado(a): \" + request.").append(getter).append("());\n");
                 checks.append("        }\n\n");
             }
         }

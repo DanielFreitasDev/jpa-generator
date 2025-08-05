@@ -5,6 +5,7 @@ import com.jpagenerator.config.DatabaseConfig;
 import com.jpagenerator.generator.CodeGenerator;
 import com.jpagenerator.generator.CrudGenerator;
 import com.jpagenerator.inspector.DatabaseInspector;
+import com.jpagenerator.model.ForeignKeyInfo;
 import com.jpagenerator.model.TableInfo;
 import com.jpagenerator.util.CodeGeneratorHelper;
 import com.jpagenerator.util.Inflector;
@@ -14,9 +15,11 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.Set;
 
 public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
@@ -358,13 +361,15 @@ public class Main {
             configuredTables.add(tableName);
         }
 
-        System.out.println("\n=== Gerando Classes ===");
+        System.out.println("\n=== Gerando Classes Entidade ===");
         List<String> generatedFiles = new ArrayList<>();
+        Map<String, TableInfo> tableInfoMap = new HashMap<>();
 
         for (String tableName : allTableNames) {
             TableInfo tableInfo = inspector.getTableInfo(schema, tableName);
-            String className = classNames.get(tableName);
+            tableInfoMap.put(tableName, tableInfo);
 
+            String className = classNames.get(tableName);
             if (className == null) {
                 String pascalCaseName = Inflector.toPascalCase(tableName);
                 className = Inflector.singularize(pascalCaseName);
@@ -374,14 +379,40 @@ public class Main {
 
             String filePath = generator.generateEntity(tableInfo, className, fkHandling, classNames);
             generatedFiles.add(filePath);
-
             System.out.println("✓ " + className + ".java gerado em: " + filePath);
+        }
 
+        Set<String> crudGenerationQueue = new LinkedHashSet<>();
+        for (String tableName : initialTableNames) {
+            String className = classNames.get(tableName);
             System.out.print("\nDeseja gerar um CRUD Spring Boot para a entidade '" + className + "'? (s/n) [n]: ");
             String choice = scanner.nextLine().trim().toLowerCase();
             if (choice.equals("s") || choice.equals("sim")) {
+                crudGenerationQueue.add(tableName);
+                TableInfo tableInfo = tableInfoMap.get(tableName);
+                Map<String, String> fkHandling = foreignKeyHandling.getOrDefault(tableName, new HashMap<>());
+                if (tableInfo.getForeignKeys() != null) {
+                    for (ForeignKeyInfo fk : tableInfo.getForeignKeys()) {
+                        if ("relationship".equals(fkHandling.get(fk.getColumnName()))) {
+                            String relatedTable = fk.getReferencedTable();
+                            if (crudGenerationQueue.add(relatedTable)) {
+                                System.out.println("-> CRUD para a entidade relacionada '" + classNames.get(relatedTable) + "' será gerado também.");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!crudGenerationQueue.isEmpty()) {
+            System.out.println("\n=== Gerando Camadas do CRUD ===");
+            for (String tableName : crudGenerationQueue) {
+                String className = classNames.get(tableName);
+                TableInfo tableInfo = tableInfoMap.get(tableName);
+                Map<String, String> fkHandling = foreignKeyHandling.getOrDefault(tableName, new HashMap<>());
+
                 try {
-                    List<String> crudFiles = crudGenerator.generateCrud(tableInfo, className, classNames);
+                    List<String> crudFiles = crudGenerator.generateCrud(tableInfo, className, classNames, fkHandling);
                     generatedFiles.addAll(crudFiles);
                     System.out.println("✓ CRUD gerado com sucesso para " + className);
                 } catch (Exception e) {
@@ -391,8 +422,9 @@ public class Main {
             }
         }
 
+
         System.out.println("\n=== Resumo ===");
-        System.out.println("Total de classes geradas: " + generatedFiles.size());
+        System.out.println("Total de arquivos gerados: " + generatedFiles.size());
         System.out.println("Arquivos:");
         generatedFiles.forEach(file -> System.out.println("  " + file));
 
